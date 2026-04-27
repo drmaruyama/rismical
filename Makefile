@@ -44,7 +44,8 @@ TARGET := $(BINDIR)/rismical.x
 
 # Pegasus
 FC = nvfortran
-FCFLAGS = -fast -mp
+#FCFLAGS = -fast -mp -Minfo
+FCFLAGS = -fast -Minfo=accel -acc
 LDFLAGS = -L/work/NORYSD22/drmaruyama/local/lib -lopenblas
 
 #FCLD = $(FC)
@@ -80,7 +81,6 @@ $(OBJDIR)/%.o: $(SRCDIR)/%.f
 
 clean:
 	rm -f $(OBJDIR)/*.o
-	rm -f $(TARGET)
 
 distclean:
 	rm -rf $(OBJDIR) $(BINDIR)

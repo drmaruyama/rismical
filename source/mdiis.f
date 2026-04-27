@@ -42,6 +42,7 @@ c
          allocate (rsmdiis(ng,nsub))
          allocate (rsdmat(nsub+1,nsub+1))
          allocate (listrs(nsub))
+!$acc enter data create(trmdiis,rsmdiis)
          
          init=.false.
 
@@ -69,8 +70,11 @@ c
             listrs(i)=0
          enddo
 
-         call vclr_mp(rsmdiis,1,ng*nsub)
-         call vclr_mp(trmdiis,1,ng*nsub)
+!$acc kernels present(trmdiis,rsmdiis)  
+         trmdiis=0.0d0         
+         rsmdiis=0.0d0
+!$acc end kernels
+!$acc parallel loop present(trmdiis,tr)
          do i=1,ng
             trmdiis(i,1)=tr(i)
          enddo
@@ -80,10 +84,10 @@ c
       endif
 
       itr=itr+1
-c
+
       allocate (dmat(nsub+1,nsub+1))
       allocate (x(nsub+1))
-c      
+      
       x(1)=-1.d0
       do i=2,nsub+1
          x(i)=0.d0
@@ -94,6 +98,7 @@ c
       rmsnew=0.d0
       irms=listrs(1)
 !$OMP PARALLEL DO REDUCTION(+: RMSNEW)
+!$acc parallel loop present(trmdiis,tr) reduction(+: rmsnew)
       do jk=1,ng
          rmsnew=rmsnew+(tr(jk)-trmdiis(jk,irms))**2
       enddo
@@ -128,6 +133,7 @@ c
          irms=listrs(irmsmin)
 
 !$OMP PARALLEL DO REDUCTION(+: SUM)
+!$acc parallel loop present(rsmdiis) reduction(+: sum)
          do ijk=1,ng
             sum=sum+dble(rsmdiis(ijk,irms)*rsmdiis(ijk,irms))
          enddo
@@ -150,6 +156,7 @@ c     --- Set New Residual
 c     
       irms=listrs(1)
 !$OMP PARALLEL DO
+!$acc parallel loop present(trmdiis,rsmdiis,tr)
       do ijk=1,ng
          rsmdiis(ijk,irms)=dble(tr(ijk)-trmdiis(ijk,irms))
          trmdiis(ijk,irms)=tr(ijk)
@@ -164,6 +171,7 @@ c
          irms=listrs(i)
 !$OMP PARALLEL
 !$OMP DO REDUCTION(+: SUM)
+!$acc parallel loop present(rsmdiis) reduction(+: sum)
          do ijk=1,ng
             sum=sum+dble(rsmdiis(ijk,irms1)*rsmdiis(ijk,irms))
          enddo
@@ -186,6 +194,7 @@ c
 c     --- Make New Estimate 
 c     
 !$OMP PARALLEL DO PRIVATE(SUM,IRMS)
+!$acc parallel loop present(trmdiis, rsmdiis, tr) private(sum, irms)
       do ijk=1,ng
 
          sum=0.d0
@@ -214,6 +223,7 @@ c
       if (irmsnext.gt.nsub) irmsnext=1
       listrs(1)=irmsnext
 !$OMP PARALLEL DO
+!$acc parallel loop present(trmdiis, tr)
       do ijk=1,ng
          trmdiis(ijk,irmsnext)=tr(ijk)
       enddo

@@ -195,7 +195,7 @@ c
       eblj=0.d0
 !$OMP PARALLEL DO PRIVATE(JJ,CRR,GR) REDUCTION(+:ebtot,eblj)
       do k=1,ngrid3d**3
-         if (listcore(k).eq.0) goto 8000
+         if (listcore(k).ne.0) then
 
          do j=1,nvuq
 
@@ -207,7 +207,7 @@ c
             eblj=eblj+densuq(j)
      &           *gr*(urlj(k,j))*rd33
          enddo
- 8000    continue
+         endif
       enddo
 !$OMP END PARALLEL DO
       ebindtot=ebtot

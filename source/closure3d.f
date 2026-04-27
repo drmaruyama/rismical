@@ -22,7 +22,7 @@ c     listcore  ... list of core region 0..core 1..not core
 c     
       implicit real*8 (a-h,o-z)
       complex*16 ck,fk,fkk
-      complex*16 ,allocatable :: dumfft(:)
+      complex*16 ,allocatable, save :: dumfft(:)
 
       include "phys_const.i"
       include "rismrun.i"
@@ -33,9 +33,11 @@ c
       dimension urlj(ng3d,n2uq)
       dimension listcore(ng3d)
       dimension fr(ng3d),fk(ng3d)
-c
-      allocate (dumfft(ng3d))
-c
+
+      if (.not. allocated(dumfft)) then
+         allocate (dumfft(ng3d))
+      end if
+
       ngrid3d2=ngrid3d**2
       dk3d=2.d0*pi/(rdelta3d*dble(ngrid3d))
       ngshift=ngrid3d/2+1
@@ -46,7 +48,9 @@ c
       inv=1
       m=nint(dlog(dble(ngrid3d))/dlog(2.d0))
 c
-      call vclr_mp(ck,1,ng3d*2*nvuq)
+!$acc kernels present(ck)
+         ck = (0.0d0, 0.0d0)
+!$acc end kernels
 c
 c     --- solve closure relation ( t(r) --> c(r) )
 c
@@ -55,12 +59,14 @@ c
          call vclr_mp(dumfft,1,ng3d*2)
 c
 !$omp parallel do private(rz,ry,rx,k,bur,d,trs,dkr)
+!$acc parallel loop collapse(3) present(tr,listcore,vres,urlj,fr)
+!$acc& private(rz,ry,rx,k,bur,d,trs,dkr)
          do kz=1,ngrid3d
-         rz=rdelta3d*dble(kz-ngshift)
          do ky=1,ngrid3d
-         ry=rdelta3d*dble(ky-ngshift)
          do kx=1,ngrid3d
-         rx=rdelta3d*dble(kx-ngshift)
+            rz=rdelta3d*dble(kz-ngshift)
+            ry=rdelta3d*dble(ky-ngshift)
+            rx=rdelta3d*dble(kx-ngshift)
 
             k=kx+(ky-1)*ngrid3d+(kz-1)*ngrid3d2
 c     
@@ -105,7 +111,7 @@ c
                   
                   write(*,*) "RBC is not implemented yet."
                   ierr=44
-                  call abrt(ierr)
+cc                  call abrt(ierr)
 c     
 c     --- KGK
 c     
@@ -138,10 +144,13 @@ c
          enddo                  ! of ky
          enddo                  ! of kz
 !$omp end parallel do
-
+         
+         if (ierr==44) call abrt(ierr)
+         
          call ffte3d(dumfft,ngrid3d,rdelta3d,inv)
 
-!$omp parallel do
+!$omp parallel do 
+!$acc parallel loop present(ck, fk)
          do k=1,ng3d
             ck(k,j)=dumfft(k)-beta*fk(k)*q2uq(j)*chgratio ! c(k) is in "ck"
          enddo
@@ -150,7 +159,7 @@ c
       enddo                     ! of j to nvuq
 
 c----------------------------------------------------------------
-      deallocate (dumfft)
+c      deallocate (dumfft)
 c
       return
       end
@@ -189,7 +198,10 @@ c     --- solve closure relation ( t(r) --> c(r) )
 c
       do j=1,nvuq
 c
+
 !$omp parallel do private(bur,d,dkr)
+!$acc parallel loop present(cr,tr,listcore,vres,urlj)
+!$acc& private(bur,d,dkr)
          do k=1,ng3d
 c
 c     --- inner core
@@ -227,7 +239,7 @@ c     --- hnc+rbc
 c     
                elseif (icl.eq.3) then
                   ierr=44
-                  call abrt(ierr)
+c                  call abrt(ierr)
 c
 c     --- ---
 c
@@ -235,9 +247,11 @@ c
                
             endif
 
-         enddo   ! of kz
+         enddo                  ! of kz
 !$omp end parallel do
-c
+
+         if (ierr==44) call abrt(ierr)
+     
       enddo                     ! of j to nvuq
 
 c----------------------------------------------------------------

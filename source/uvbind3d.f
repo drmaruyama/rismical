@@ -60,7 +60,7 @@ c
 
                k=kx+(ky-1)*ngrid3d+(kz-1)*ngrid3d**2
 
-               if (listcore(k).eq.0) goto 6000
+               if (listcore(k).ne.0) then
 
                rx=rdelta3d*dble(kx-k0)-xyzu(1,i)
                ry=rdelta3d*dble(ky-k0)-xyzu(2,i)
@@ -78,7 +78,7 @@ c
                ebind(j,i)=ebind(j,i)+4.d0*(rr12-rr6) 
      &              *gr*rd33*dens(nspc(j))
 
- 6000          continue
+               endif
 
             enddo
             enddo
@@ -92,7 +92,7 @@ c
 C
                k=kx+(ky-1)*ngrid3d+(kz-1)*ngrid3d**2
 C
-               if (listcore(k).eq.0) goto 6100
+               if (listcore(k).ne.0) then
 C
                rx=rdelta3d*dble(kx-k0)-xyzu(1,i)
                ry=rdelta3d*dble(ky-k0)-xyzu(2,i)
@@ -106,7 +106,7 @@ C
      &              +qu(i)*qv(j)/rr*fel  
      &              *gr*rd33*dens(nspc(j))
 C
- 6100          continue
+               endif
 C
             enddo
             enddo

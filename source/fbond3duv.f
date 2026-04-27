@@ -23,6 +23,7 @@ c-----------------------------------------------------------------
 c     
 c     --- Initialize
 c     
+!$acc parallel loop present(fr,fk)
       do k=1,ng3d
          fr(k)=0.d0
          fk(k)=(0.d0,0.d0)
@@ -30,6 +31,8 @@ c
 c     
 c     --- make 3d-phi bond
 c     
+!$acc parallel loop collapse(3) present(fr,fk)
+!$acc& private(k,i,rx,ry,rz,rkx,rky,rkz,rk,rix,riy,riz,rii,riik)
       do kz=1,ngrid3d
       do ky=1,ngrid3d
       do kx=1,ngrid3d

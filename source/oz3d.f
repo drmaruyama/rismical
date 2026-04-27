@@ -20,7 +20,7 @@ c     listxvv   ... list vector of xvv
 c     
       implicit real*8 (a-h,o-z)
       complex*16 cdum,ck,cr,dsum
-      complex*16 ,allocatable :: dumfft(:)
+      complex*16 ,allocatable, save :: dumfft(:)
 
       include "solvent.i"
       include "rismrun.i"
@@ -34,7 +34,9 @@ c
       dimension cdum(n2uq)
 
       ng3d=ngrid3d**3
-      allocate (dumfft(ng3d))
+      if (.not. allocated(dumfft)) then
+         allocate (dumfft(ng3d))
+      end if
 
       ngrid3d2=ngrid3d*ngrid3d
       dnshift=dble(ngrid3d+1)/2.d0 
@@ -46,17 +48,21 @@ c     --- parameter for fft
 c
       m=nint(dlog(dble(ngrid3d))/dlog(2.d0))
 c
-      call vclr_mp(cr,1,nvuq*ngrid3d**3*2)
+!$acc kernels present(ck)
+      cr = (0.0d0, 0.0d0)
+!$acc end kernels
 c
 c     --- k-space 3d uv-oz [cr(k) --> hr(k)]
 c            
 !$omp parallel do private(nkz,nky,nkx,k,kxvv,cdum,jj,dsum,jj2)
+!$acc parallel loop collapse(3) present(ck,listxvv, xvv)
+!$acc& private(nkz,nky,nkx,k,kxvv,cdum,jj,dsum,jj2)      
       do kz=1,ngrid3d
-      nkz=nint(abs(dble(kz)-dnshift)+0.5d0)
       do ky=1,ngrid3d
-      nky=nint(abs(dble(ky)-dnshift)+0.5d0)
       do kx=1,ngrid3d
-      nkx=nint(abs(dble(kx)-dnshift)+0.5d0)
+         nkz=nint(abs(dble(kz)-dnshift)+0.5d0)
+         nky=nint(abs(dble(ky)-dnshift)+0.5d0)
+         nkx=nint(abs(dble(kx)-dnshift)+0.5d0)
          
          k=kx+(ky-1)*ngrid3d+(kz-1)*ngrid3d2
          kxvv=listxvv(nkx,nky,nkz)
@@ -100,8 +106,9 @@ c$$$ 8000       continue
       enddo
       enddo
       enddo
+!$acc update self(cr)
 !$omp end parallel do
-c
+c     
 c     --- fourier transform [h(k) --> h(r) --> t(r)]
 c     
       do j=1,nvuq
@@ -118,15 +125,16 @@ c
 
          inv=0
          call ffte3d(dumfft,ngrid3d,rdelta3d,inv)
-         
-!$omp parallel do private(rz,ry,rx,k,dkr)
 
+!$omp parallel do private(rz,ry,rx,k,dkr)
+!$acc parallel loop collapse(3) present(cr, tr)
+!$acc& private(rz,ry,rx,k,dkr)
          do kz=1,ngrid3d
-         rz=rdelta3d*dble(kz-ngshift)
          do ky=1,ngrid3d
-         ry=rdelta3d*dble(ky-ngshift)
          do kx=1,ngrid3d
-         rx=rdelta3d*dble(kx-ngshift)
+            rz=rdelta3d*dble(kz-ngshift)
+            ry=rdelta3d*dble(ky-ngshift)
+            rx=rdelta3d*dble(kx-ngshift)
 
             k=kx+(ky-1)*ngrid3d+(kz-1)*ngrid3d2
             dkr=dk3d/2.d0*(rx+ry+rz) 
@@ -139,10 +147,9 @@ c
          enddo
          enddo     ! of kz
 !$omp end parallel do
-
       enddo                     ! of j for nvuq
 c-------------------------------------------------------------------
-      deallocate (dumfft)
+c      deallocate (dumfft)
 c
       return
       end

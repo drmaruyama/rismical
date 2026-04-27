@@ -38,8 +38,8 @@ c
       call setuparraysize
 
       ng3d=ngrid3d**3
-      allocate (ck(ng3d,nvuq))
       allocate (cr(ng3d,nvuq))
+      allocate (ck(ng3d,nvuq))
       allocate (tr(ng3d,nvuq))
       allocate (vres(ng3d))
       allocate (urlj(ng3d,nvuq))
@@ -47,24 +47,30 @@ c
       allocate (listxvv(ngrid3d/2+1,ngrid3d/2+1,ngrid3d/2+1))
       allocate (listcore(ng3d))
       allocate (fr(ng3d),fk(ng3d))
+!$acc enter data create(cr, ck, tr)
+!$acc enter data create(vres, urlj, xvv, listxvv, listcore, fr, fk)
 c
 c     --- Initialize
 c     
       call vclrz_mp(cr,1,ng3d*nvuq)
       call vclrz_mp(ck,1,ng3d*nvuq)
-      call vclr_mp(tr,1,ng3d*nvuq)
+!$acc update device(cr, ck)
+c      call vclr_mp(tr,1,ng3d*nvuq)
 c     
 c     --- Setup V-V Total Correlation Function 
 c     
       call setup1dvx(ngrid,nvuq,nxvv,ngrid3d,listxvv,xvv)
+!$acc update device(listxvv, xvv)
 c     
 c     --- Make 3D f-Bond
 c     
       call fbond3duv(ng3d,fr,fk)
+!$acc update self(fr,fk)
 c     
 c     --- Make 3D-Potential 
 c     
       call potential3duv(ng3d,nvuq,vres,urlj,listcore)
+!$acc update self(vres,urlj,listcore)
 c     
 c     --- Make initial guess for tr(r)
 c     
@@ -72,8 +78,9 @@ c
 c     
       if (iguess.eq.0) then
          do j=1,nvuq
+!$acc parallel loop present(tr, fr) private(jk, trguess)
             do k=1,ng3d
-               tr(k,j)=0.d0
+c               tr(k,j)=0.d0
                jk=(j-1)*ng3d+k
                trguess=fr(k)*q2uq(j)
                tr(k,j)=trguess*frfac
@@ -106,6 +113,7 @@ c
       frfac =beta*chgratio
       do j=1,nvuq
 !$OMP PARALLEL DO PRIVATE(trguess)
+!$acc parallel loop present(tr, fr) private(trguess)
          do k=1,ng3d
             trguess=fr(k)*q2uq(j)
             tr(k,j)=tr(k,j)-trguess*prefac
@@ -121,7 +129,9 @@ c
 c
 c     --- Setup mdiis
 c     
-      call mdiis(ng3d*nvuq,tr,residu,cconv,0)  
+c!$acc update self(tr)
+      call mdiis(ng3d*nvuq,tr,residu,cconv,0)
+c!$acc update device(tr)      
 c---------------------------------------------------------
 c     RISM Iteration Cycle
 c---------------------------------------------------------
@@ -152,7 +162,9 @@ c
 c    
 c     --- check convergence and make guess for next loop
 c     
+c!$acc update self(tr)
          call mdiis(ng3d*nvuq,tr,residu,cconv,1)
+c!$acc update device(tr)      
 c     
          if ((residu.le.cconv).and.(itr.ge.3)) goto 8000
 c     
@@ -170,7 +182,7 @@ c---------------------------------------------------------
 c
       write(*,9989) itr,residu,0,"x"
       write(*,9993)
-c
+c     
 c     go to next charge up cycle
 c
       if (chgratio.ne.1.d0) goto 1000
@@ -186,6 +198,7 @@ c
 c
 c     calc property
 c
+!$acc update self(cr,tr)
       call prop3duv(ng3d,nvuq
      &             ,vres,urlj,listcore,cr,tr)
 c

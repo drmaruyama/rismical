@@ -40,10 +40,13 @@ C
 C
 c     --- Setup Core Region List
 c
+!$acc parallel loop present(listcore)
       do k=1,ng3d
          listcore(k)=1
       enddo
 
+!$acc parallel loop collapse(3) present(listcore)
+!$acc& private(kx,ky,kz,k,i,rx,ry,rz,rr)
       do kz=1,ngrid3d
       do ky=1,ngrid3d
       do kx=1,ngrid3d
@@ -57,8 +60,8 @@ c
                listcore(k)=0
             endif
          enddo
-         enddo
-         enddo
+      enddo
+      enddo
       enddo
 C
 c     --- Make Potential
@@ -67,45 +70,46 @@ c
 
       do j=1,nv
          jj=iuniq(j)
-         if (jj.lt.0) goto 6500
-         do i=1,nu
+         if (jj.ge.0) then
 c     
 c     --- LJ
 c     
+!$acc parallel loop collapse(3) present(listcore, urlj)
+!$acc& private(kx,ky,kz,k,i,rx,ry,rz,rr2,rrinv2,rrinv6,rrinv12,rr6,rr12)
             do kz=1,ngrid3d
             do ky=1,ngrid3d
             do kx=1,ngrid3d
 
                k=kx+(ky-1)*ngrid3d+(kz-1)*ngrid3d**2
 
-               if (listcore(k).eq.0) then
+               do i=1,nu
+                  if (listcore(k).eq.0) then
                   
-                  rr2=1.d-6
+                     rr2=1.d-6
 
-               else
+                  else
 
-                  rx=rdelta3d*dble(kx-k0)-xyzu(1,i)
-                  ry=rdelta3d*dble(ky-k0)-xyzu(2,i)
-                  rz=rdelta3d*dble(kz-k0)-xyzu(3,i)
-                  rr2=rx**2+ry**2+rz**2
+                     rx=rdelta3d*dble(kx-k0)-xyzu(1,i)
+                     ry=rdelta3d*dble(ky-k0)-xyzu(2,i)
+                     rz=rdelta3d*dble(kz-k0)-xyzu(3,i)
+                     rr2=rx**2+ry**2+rz**2
 
-               endif
+                  endif
 
-               rrinv2=1.d0/rr2
-               rrinv6=rrinv2*rrinv2*rrinv2
-               rrinv12=rrinv6*rrinv6
+                  rrinv2=1.d0/rr2
+                  rrinv6=rrinv2*rrinv2*rrinv2
+                  rrinv12=rrinv6*rrinv6
 
-               rr6=epsig6(i,j)*rrinv6
-               rr12=epsig12(i,j)*rrinv12
-               urlj(k,jj)=urlj(k,jj)+4.d0*(rr12-rr6) ![J/mol]
+                  rr6=epsig6(i,j)*rrinv6
+                  rr12=epsig12(i,j)*rrinv12
+                  urlj(k,jj)=urlj(k,jj)+4.d0*(rr12-rr6) ![J/mol]
 
+               enddo            ! of nu
             enddo               ! of kx
             enddo               ! of ky
             enddo               ! of kz
 
-         enddo                  ! of nu
-
- 6500    continue
+         end if
 C
       enddo                     ! of nv
 c     
@@ -116,30 +120,31 @@ c     By partial charge
 c
       if (ipot3d.eq.0) then
 
-      do i=1,nu
-
+!$acc parallel loop collapse(3) present(listcore,vres)
+!$acc& private(kx,ky,kz,k,i,rx,ry,rz,rr)
          do kz=1,ngrid3d
          do ky=1,ngrid3d
          do kx=1,ngrid3d
-C
+
             k=kx+(ky-1)*ngrid3d+(kz-1)*ngrid3d**2
-C
-            if (listcore(k).eq.0) goto 6100
-C
-            rx=rdelta3d*dble(kx-k0)-xyzu(1,i)
-            ry=rdelta3d*dble(ky-k0)-xyzu(2,i)
-            rz=rdelta3d*dble(kz-k0)-xyzu(3,i)
-            rr=dsqrt(rx**2+ry**2+rz**2)
-C     
-            vres(k)=vres(k) + qu(i)/rr*fel  
-C
- 6100       continue
-C
+
+            if (listcore(k).ne.0) then
+               do i=1,nu
+
+                  rx=rdelta3d*dble(kx-k0)-xyzu(1,i)
+                  ry=rdelta3d*dble(ky-k0)-xyzu(2,i)
+                  rz=rdelta3d*dble(kz-k0)-xyzu(3,i)
+                  rr=dsqrt(rx**2+ry**2+rz**2)
+     
+                  vres(k)=vres(k) + qu(i)/rr*fel  
+               enddo            ! of nu
+
+            endif
+
          enddo                  ! of kx
          enddo               ! of ky
          enddo               ! of kz
 C
-      enddo                     ! of nu
 c
 c     Read from external file
 c
