@@ -716,8 +716,6 @@ c----------------------------------------------------------------
       enddo
       enddo
 
-!$acc wait      
-c!$acc data present(a)
 !$acc host_data use_device(a,b)      
       if (inv.eq.0) then
 c         stat = cufftExecZ2Z(plan, a, b, CUFFT_INVERSE)
@@ -727,8 +725,6 @@ c         stat = cufftExecZ2Z(plan, a, b, CUFFT_FORWARD)
          stat = cufftExecZ2Z(plan, a, b, CUFFT_INVERSE)         
       end if         
 !$acc end host_data
-c!$acc end data
-!$acc wait      
 
 c  inv=0  k -> r
 c      1  r -> k
@@ -740,7 +736,7 @@ c     fac=(n*d)**3
         fac=d**3         
       end if
 
-!$acc parallel loop collapse(3) present (a)      
+!$acc parallel loop collapse(3) present(a,b)      
       do iz=1,n
       do iy=1,n
       do ix=1,n
