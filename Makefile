@@ -28,24 +28,24 @@ TARGET := $(BINDIR)/rismical.x
 
 # PGI Compiler
 #FC = pgf95
-#FCFLAGS = -fastsse -O4 -Mprefetch=distance:8,nta -Minline=size:50 -mp -Mfixed -mcmodel=medium 
+#FCFLAGS = -fastsse -O4 -Mprefetch=distance:8,nta -Minline=size:50 -mp -Mfixed -mcmodel=medium  -Mpreprocess
 #LDFLAGS = -lacml -lacml_mv 
 
 # GNU Compiler
 #FC =  gfortran
-#FCFLAGS = -O3 -fomit-frame-pointer -ffixed-form -Wno-argument-mismatch -std=legacy
+#FCFLAGS = -O3 -fomit-frame-pointer -ffixed-form -Wno-argument-mismatch -std=legacy -cpp
 #LDFLAGS = -lblas -llapack
 
 # # Intel Compiler
 # FC =  ifort
-# FCFLAGS = -O3 -shared-intel -mcmodel=medium -fixed -assume byterecl
-# FCFLAGS = -O3 -shared-intel -qopenmp -fixed  -assume byterecl
+# FCFLAGS = -O3 -shared-intel -mcmodel=medium -fixed -assume byterecl -fpp 
+# FCFLAGS = -O3 -shared-intel -qopenmp -fixed  -assume byterecl -fpp
 # LDFLAGS = -lblas -llapack
 
 # Pegasus
 FC = nvfortran
-#FCFLAGS = -fast -mp -Minfo
-FCFLAGS = -fast -Minfo=accel -acc
+#FCFLAGS = -fast -mp -cpp -Minfo
+FCFLAGS = -fast -Minfo=accel -acc -cpp -cudalib=cufft -DACC
 LDFLAGS = -L/work/NORYSD22/drmaruyama/local/lib -lopenblas
 
 #FCLD = $(FC)

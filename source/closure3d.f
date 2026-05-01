@@ -36,6 +36,7 @@ c
 
       if (.not. allocated(dumfft)) then
          allocate (dumfft(ng3d))
+!$acc enter data create(dumfft)
       end if
 
       ngrid3d2=ngrid3d**2
@@ -48,18 +49,12 @@ c
       inv=1
       m=nint(dlog(dble(ngrid3d))/dlog(2.d0))
 c
-!$acc kernels present(ck)
-         ck = (0.0d0, 0.0d0)
-!$acc end kernels
-c
 c     --- solve closure relation ( t(r) --> c(r) )
 c
       do j=1,nvuq
-c
-         call vclr_mp(dumfft,1,ng3d*2)
-c
 !$omp parallel do private(rz,ry,rx,k,bur,d,trs,dkr)
-!$acc parallel loop collapse(3) present(tr,listcore,vres,urlj,fr)
+!$acc parallel loop collapse(3) 
+!$acc& present(tr,listcore,vres,urlj,fr,dumfft)
 !$acc& private(rz,ry,rx,k,bur,d,trs,dkr)
          do kz=1,ngrid3d
          do ky=1,ngrid3d
@@ -146,11 +141,14 @@ c
 !$omp end parallel do
          
          if (ierr==44) call abrt(ierr)
-         
+#ifdef ACC
+         call cufft3d(dumfft,ngrid3d,rdelta3d,inv)
+#else
          call ffte3d(dumfft,ngrid3d,rdelta3d,inv)
-
+#endif
+  
 !$omp parallel do 
-!$acc parallel loop present(ck, fk)
+!$acc parallel loop present(ck, fk, dumfft)
          do k=1,ng3d
             ck(k,j)=dumfft(k)-beta*fk(k)*q2uq(j)*chgratio ! c(k) is in "ck"
          enddo
@@ -159,7 +157,6 @@ c
       enddo                     ! of j to nvuq
 
 c----------------------------------------------------------------
-c      deallocate (dumfft)
 c
       return
       end

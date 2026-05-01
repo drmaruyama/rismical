@@ -70,10 +70,15 @@ c
             listrs(i)=0
          enddo
 
+#ifdef ACC
 !$acc kernels present(trmdiis,rsmdiis)  
          trmdiis=0.0d0         
          rsmdiis=0.0d0
 !$acc end kernels
+#else
+         call vclr_mp(rsmdiis,1,ng*nsub)
+         call vclr_mp(trmdiis,1,ng*nsub)
+#endif
 !$acc parallel loop present(trmdiis,tr)
          do i=1,ng
             trmdiis(i,1)=tr(i)

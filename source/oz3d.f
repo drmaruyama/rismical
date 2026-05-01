@@ -36,6 +36,7 @@ c
       ng3d=ngrid3d**3
       if (.not. allocated(dumfft)) then
          allocate (dumfft(ng3d))
+!$acc enter data create(dumfft)
       end if
 
       ngrid3d2=ngrid3d*ngrid3d
@@ -47,10 +48,6 @@ c
 c     --- parameter for fft
 c
       m=nint(dlog(dble(ngrid3d))/dlog(2.d0))
-c
-!$acc kernels present(ck)
-      cr = (0.0d0, 0.0d0)
-!$acc end kernels
 c
 c     --- k-space 3d uv-oz [cr(k) --> hr(k)]
 c            
@@ -106,16 +103,14 @@ c$$$ 8000       continue
       enddo
       enddo
       enddo
-!$acc update self(cr)
 !$omp end parallel do
 c     
 c     --- fourier transform [h(k) --> h(r) --> t(r)]
 c     
       do j=1,nvuq
          
-         call vclr_mp(dumfft,1,ng3d*2)
-
 !$omp parallel do 
+!$acc parallel loop present(cr, dumfft)
          do k=1,ng3d
 
             dumfft(k)=cr(k,j)
@@ -124,10 +119,14 @@ c
 !$omp end parallel do
 
          inv=0
+#ifdef ACC
+         call cufft3d(dumfft,ngrid3d,rdelta3d,inv)
+#else
          call ffte3d(dumfft,ngrid3d,rdelta3d,inv)
-
+#endif
+         
 !$omp parallel do private(rz,ry,rx,k,dkr)
-!$acc parallel loop collapse(3) present(cr, tr)
+!$acc parallel loop collapse(3) present(cr, tr, dumfft)
 !$acc& private(rz,ry,rx,k,dkr)
          do kz=1,ngrid3d
          do ky=1,ngrid3d
@@ -149,7 +148,6 @@ c
 !$omp end parallel do
       enddo                     ! of j for nvuq
 c-------------------------------------------------------------------
-c      deallocate (dumfft)
 c
       return
       end

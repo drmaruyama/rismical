@@ -689,3 +689,70 @@ c----------------------------------------------------------------
       return
       end
 c----------------------------------------------------------------
+#ifdef ACC
+      subroutine cufft3d(a,n,d,inv)
+      use cufft
+      implicit real*8(a-h,o-z)
+      complex*16, dimension(n,n,n) :: a
+      complex*16, allocatable, save :: b(:,:,:)
+
+      integer, save :: plan      
+      integer :: stat
+      logical, save :: init = .true.
+
+      if (init) then
+         init = .false.
+         stat = cufftPlan3D(plan, n, n, n, CUFFT_Z2Z)
+         allocate(b(n, n, n))
+!$acc enter data create(b)
+      end if
+
+!$acc parallel loop collapse(3) present (a)
+      do iz=1,n
+      do iy=1,n
+      do ix=1,n
+        if(mod(ix+iy+iz,2).eq.0) a(ix,iy,iz)=-a(ix,iy,iz)
+      enddo
+      enddo
+      enddo
+
+!$acc wait      
+c!$acc data present(a)
+!$acc host_data use_device(a,b)      
+      if (inv.eq.0) then
+c         stat = cufftExecZ2Z(plan, a, b, CUFFT_INVERSE)
+         stat = cufftExecZ2Z(plan, a, b, CUFFT_FORWARD)
+      else
+c         stat = cufftExecZ2Z(plan, a, b, CUFFT_FORWARD)
+         stat = cufftExecZ2Z(plan, a, b, CUFFT_INVERSE)         
+      end if         
+!$acc end host_data
+c!$acc end data
+!$acc wait      
+
+c  inv=0  k -> r
+c      1  r -> k
+
+      if(inv.eq.0) then
+        fac=1.0d0/(d*n)**3
+      else
+c     fac=(n*d)**3
+        fac=d**3         
+      end if
+
+!$acc parallel loop collapse(3) present (a)      
+      do iz=1,n
+      do iy=1,n
+      do ix=1,n
+        if(mod(ix+iy+iz,2).eq.0) then
+          a(ix,iy,iz)=-fac*b(ix,iy,iz)
+        else
+          a(ix,iy,iz)= fac*b(ix,iy,iz)
+        end if
+      enddo
+      enddo
+      enddo
+
+      return
+      end
+#endif
